@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentauth"
+version = "0.1.0"
+description = "Tiered OAuth and API credential management for agent frameworks"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "keyring>=25.0",
+    "secretstorage>=3.3",   # Linux SecretService (gnome-keyring / KWallet)
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+agentauth = "agentauth.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
