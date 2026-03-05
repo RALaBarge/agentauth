@@ -109,14 +109,20 @@ class ConnectionRegistry:
 
     def list(self) -> list[dict]:
         """Return list of connection info dicts."""
-        return [
-            {
+        from .oauth import oauth_token_source
+        results = []
+        for name, conn in sorted(self._cfg.items()):
+            if conn.get("type") == "oauth2":
+                source = oauth_token_source(name)
+            else:
+                source = token_source(name)
+            results.append({
                 "name":   name,
+                "type":   conn.get("type", "bearer"),
                 "tier":   conn.get("tier", TIER_READ),
-                "source": token_source(name),
-            }
-            for name, conn in sorted(self._cfg.items())
-        ]
+                "source": source,
+            })
+        return results
 
     def tier(self, name: str) -> int:
         """Return the tier for a named connection."""
@@ -155,7 +161,14 @@ class ConnectionRegistry:
                 f"Allowed: {allowed}"
             )
 
-        token = get_token(name)
+        # Resolve token — oauth2 connections auto-refresh; bearer connections use keychain/env
+        conn_type = conn_cfg.get("type", "bearer")
+        if conn_type == "oauth2":
+            from .oauth import get_access_token
+            token = get_access_token(name, conn_cfg)
+        else:
+            token = get_token(name)
+
         if not token:
             raise RuntimeError(
                 f"No token for '{name}'. "

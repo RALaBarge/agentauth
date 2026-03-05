@@ -45,6 +45,13 @@ def main():
     p_test.add_argument("--path", default="/", help="Path to test (default: /)")
     p_test.add_argument("--config", help="Path to config file (optional)")
 
+    p_auth = sub.add_parser("auth", help="Authorize an OAuth2 connection (browser flow)")
+    p_auth.add_argument("name", help="Connection name from config")
+    p_auth.add_argument("--config", help="Path to config file (optional)")
+
+    p_deauth = sub.add_parser("deauth", help="Remove stored OAuth2 tokens")
+    p_deauth.add_argument("name")
+
     sub.add_parser("setup", help="Print setup instructions")
 
     args = parser.parse_args()
@@ -89,6 +96,27 @@ def main():
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+
+    elif args.cmd == "auth":
+        cfg = _load_cfg(getattr(args, "config", None))
+        conn_cfg = cfg.get(args.name)
+        if conn_cfg is None:
+            print(f"Error: '{args.name}' not found in config. Add it to your connections config first.", file=sys.stderr)
+            sys.exit(1)
+        if conn_cfg.get("type") != "oauth2":
+            print(f"Error: '{args.name}' is type '{conn_cfg.get('type', 'bearer')}', not oauth2. Use 'agentauth add' for bearer tokens.", file=sys.stderr)
+            sys.exit(1)
+        try:
+            from .oauth import do_auth_flow
+            do_auth_flow(args.name, conn_cfg)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.cmd == "deauth":
+        from .oauth import _delete_tokens
+        _delete_tokens(args.name)
+        print(f"Removed OAuth tokens for: {args.name}")
 
     elif args.cmd == "setup":
         _cmd_setup()
@@ -151,6 +179,27 @@ in plaintext.
    from agentauth import get_registry
    registry = get_registry(cfg["connections"])
    result = registry.call("github", "GET", "/user")
+
+OAuth2 connections:
+  agentauth auth google_calendar     # browser consent flow, stores refresh token
+  agentauth deauth google_calendar   # remove stored OAuth tokens
+
+  Config (config.yaml):
+    connections:
+      google_calendar:
+        type: oauth2
+        provider: google
+        client_id: YOUR_CLIENT_ID
+        client_secret: YOUR_CLIENT_SECRET
+        scopes:
+          - https://www.googleapis.com/auth/calendar.readonly
+        base_url: https://www.googleapis.com/calendar/v3
+        tier: 1
+        allowed_paths:
+          - /calendars/**
+
+  Supported providers: google, github, linear, notion
+  (Any provider with standard auth code flow works via custom auth_url/token_url)
 
 Tier system:
   1 (read)  — agent can call freely
